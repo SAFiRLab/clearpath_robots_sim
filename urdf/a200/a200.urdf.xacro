@@ -1,0 +1,164 @@
+<?xml version="1.0"?>
+<robot name="a200" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="namespace" default="" />
+  <xacro:arg name="use_platform_controllers" default="true"/>
+
+  <!-- Included URDF/XACRO Files -->
+  <xacro:include filename="$(find clearpath_robots_sim)/urdf/a200/wheels/wheel.urdf.xacro" />
+
+  <xacro:property name="M_PI" value="3.14159"/>
+
+  <xacro:macro name="a200" params="wheel:='default'">
+
+    <!-- Base Size -->
+    <xacro:property name="base_x_size" value="0.98740000" />
+    <xacro:property name="base_y_size" value="0.57090000" />
+    <xacro:property name="base_z_size" value="0.24750000" />
+
+    <!-- Wheel Mounting Positions -->
+    <xacro:property name="wheelbase" value="0.5120" />
+    <xacro:property name="track" value="0.555" />
+    <xacro:property name="wheel_vertical_offset" value="0.03282" />
+
+    <!-- Wheel Properties -->
+    <xacro:property name="wheel_length" value="0.1143" />
+    <xacro:property name="wheel_radius" value="0.1651" />
+
+    <!-- Base link is the center of the robot's bottom plate -->
+    <link name="base_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://clearpath_robots_sim/meshes/a200/base_link.dae" />
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${base_z_size/4}" rpy="0 0 0" />
+        <geometry>
+          <box size="${base_x_size} ${base_y_size} ${base_z_size/2}"/>
+        </geometry>
+      </collision>
+      <collision>
+        <origin xyz="0 0 ${base_z_size*3/4-0.01}" rpy="0 0 0" />
+        <geometry>
+          <box size="${base_x_size*4/5} ${base_y_size} ${base_z_size/2-0.02}"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Base footprint is on the ground under the robot -->
+    <link name="base_footprint"/>
+
+    <joint name="base_footprint_joint" type="fixed">
+      <origin xyz="0 0 ${wheel_vertical_offset - wheel_radius}" rpy="0 0 0" />
+      <parent link="base_link" />
+      <child link="base_footprint" />
+    </joint>
+
+    <!-- Spawn A200 chassis -->
+    <link name="top_chassis_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://clearpath_robots_sim/meshes/a200/top_chassis.dae" />
+        </geometry>
+      </visual>
+    </link>
+
+    <!-- Attach chassis to the robot -->
+    <joint name="top_chassis_joint" type="fixed">
+      <parent link="base_link" />
+      <child link="top_chassis_link" />
+    </joint>
+
+    
+
+    <!-- A200 wheel macros -->
+    <xacro:a200_wheel wheel_prefix="front_left">
+      <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:a200_wheel>
+    <xacro:a200_wheel wheel_prefix="front_right">
+      <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:a200_wheel>
+    <xacro:a200_wheel wheel_prefix="rear_left">
+      <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:a200_wheel>
+    <xacro:a200_wheel wheel_prefix="rear_right">
+      <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:a200_wheel>
+
+    <!-- Front bumper mount -->
+    <link name="front_bumper_mount"/>
+
+    <joint name="front_bumper_mount_joint" type="fixed">
+      <origin xyz="0.406 0 0.091" rpy="0 0 0" />
+      <parent link="base_link" />
+      <child link="front_bumper_mount" />
+    </joint>
+
+    <!-- Rear bumper mount -->
+    <link name="rear_bumper_mount"/>
+
+    <joint name="rear_bumper_mount_joint" type="fixed">
+      <origin xyz="-0.406 0 0.091" rpy="0 0 ${M_PI}" />
+      <parent link="base_link" />
+      <child link="rear_bumper_mount" />
+    </joint>
+
+    <!-- Default mount -->
+    <link name="default_mount"/>
+
+    <joint name="default_mount_joint" type="fixed">
+      <child link="default_mount"/>
+      <parent link="base_link"/>
+      <origin xyz="0.0 0.0 0.224"/>
+    </joint>
+
+    <!-- ROS2 controls -->
+    <xacro:if value="$(arg use_platform_controllers)">
+      <ros2_control name="a200_hardware" type="system">
+        <hardware>
+          <plugin>fake_components/GenericSystem</plugin>
+        </hardware>
+        <joint name="front_left_wheel_joint">
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+        <joint name="rear_left_wheel_joint">
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+        <joint name="front_right_wheel_joint">
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+        <joint name="rear_right_wheel_joint">
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+      </ros2_control>
+    </xacro:if>
+
+  </xacro:macro>
+
+  <xacro:a200 />
+
+
+</robot>
