@@ -45,20 +45,20 @@
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 
-#include "clearpath_robots_sim/diff_drive/hardware_interface.hpp"
-#include "clearpath_robots_sim/visibility_control.h"
+#include "clearpath_robots_sim/hardware_interfaces/diff_drive/hardware_interface.hpp"
+#include "clearpath_robots_sim/hardware_interfaces/visibility_control.h"
 
 
-namespace clearpath_hardware_interfaces
+namespace clearpath_robots_sim_hardware_interfaces
 {
 
 static constexpr uint8_t DIFF_DRIVE_TWO_JOINTS = 2;
 static constexpr uint8_t DIFF_DRIVE_FOUR_JOINTS = 4;
 
-class DiffDriveHardware : public hardware_interface::SystemInterface
+class DiffDriveSimHardware : public hardware_interface::SystemInterface
 {
 public:
-    RCLCPP_SHARED_PTR_DEFINITIONS(DiffDriveHardware)
+    RCLCPP_SHARED_PTR_DEFINITIONS(DiffDriveSimHardware)
 
     CLEARPATH_ROBOTS_SIM_PUBLIC
     hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override;
@@ -83,11 +83,10 @@ public:
 protected:
 
     void writeCommandsToSimHardware();
-    void updateJointsFromSimHardware();
-    virtual hardware_interface::CallbackReturn getHardwareSimInfo(const hardware_interface::HardwareInfo & info);
+    virtual hardware_interface::CallbackReturn getSimHardwareInfo(const hardware_interface::HardwareInfo & info);
     virtual hardware_interface::CallbackReturn validateJoints();
-    virtual hardware_interface::CallbackReturn initHardwareSimInterface();
-    std::shared_ptr<DiffDriveHardwareInterface> node_;
+    virtual hardware_interface::CallbackReturn initSimHardwareInterface();
+    std::shared_ptr<DiffDriveSimHardwareInterface> node_;
 
     // Store the command for the robot
     std::vector<double> hw_commands_;
@@ -99,6 +98,6 @@ protected:
     std::string hw_name_;
 };
 
-}  // namespace clearpath_hardware_interfaces
+}  // namespace clearpath_robots_sim_hardware_interfaces
 
 #endif  // CLEARPATH_ROBOTS_SIM__DIFF_DRIVE_HARDWARE_HPP_

@@ -10,6 +10,60 @@ find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(std_msgs REQUIRED)
+
+
+add_library(clearpath_robots_sim SHARED
+  src/hardware_interfaces/diff_drive/hardware.cpp
+  src/hardware_interfaces/diff_drive/hardware_interface.cpp
+)
+
+target_include_directories(clearpath_robots_sim PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(clearpath_robots_sim
+  rclcpp
+  hardware_interface
+  pluginlib
+)
+
+pluginlib_export_plugin_description_file(
+  hardware_interface
+  src/hardware_interfaces/diff_drive/hardware.xml
+)
+
+install(
+  TARGETS clearpath_robots_sim
+  EXPORT export_clearpath_robots_sim
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+install(
+  FILES src/hardware_interfaces/diff_drive/hardware.xml
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY
+    launch
+    config
+    meshes
+    urdf
+  DESTINATION share/${PROJECT_NAME}
+)
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -22,14 +76,5 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
-
-install(
-  DIRECTORY
-    launch
-    config
-    meshes
-    urdf
-  DESTINATION share/${PROJECT_NAME}
-)
 
 ament_package()

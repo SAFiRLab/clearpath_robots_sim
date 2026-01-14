@@ -1,0 +1,10 @@
+<library path="clearpath_robots_sim">
+  <class
+    name="clearpath_robots_sim_hardware_interfaces/DiffDriveSimHardware"
+    type="clearpath_robots_sim_hardware_interfaces::DiffDriveSimHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Diff drive simulated hardware interface for Husky simulation
+    </description>
+  </class>
+</library>

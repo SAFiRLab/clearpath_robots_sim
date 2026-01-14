@@ -119,7 +119,7 @@
     <xacro:if value="$(arg use_platform_controllers)">
       <ros2_control name="a200_hardware" type="system">
         <hardware>
-          <plugin>fake_components/GenericSystem</plugin>
+          <plugin>clearpath_robots_sim_hardware_interfaces/DiffDriveSimHardware</plugin>
         </hardware>
         <joint name="front_left_wheel_joint">
           <command_interface name="velocity">

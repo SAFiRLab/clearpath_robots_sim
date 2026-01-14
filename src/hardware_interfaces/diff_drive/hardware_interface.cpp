@@ -1,6 +1,7 @@
 /**
+ *
  *  \file
- *  \brief      Base DiffDrive hardware interface class
+ *  \brief      Class representing diff drive hardware interface
  *  \author     Roni Kreinin <rkreinin@clearpathrobotics.com>
  *  \author     Tony Baltovski <tbaltovski@clearpathrobotics.com>
  *  \copyright  Copyright (c) 2023, Clearpath Robotics, Inc.
@@ -31,36 +32,37 @@
  *
  */
 
-#ifndef CLEARPATH_ROBOTS_SIM__DIFF_DRIVE_HARDWARE_INTERFACE_HPP_
-#define CLEARPATH_ROBOTS_SIM__DIFF_DRIVE_HARDWARE_INTERFACE_HPP_
+#include "clearpath_robots_sim/hardware_interfaces/diff_drive/hardware_interface.hpp"
 
-#include <mutex>
 
-#include "rclcpp/rclcpp.hpp"
+using clearpath_robots_sim_hardware_interfaces::DiffDriveSimHardwareInterface;
 
-#include "clearpath_platform_msgs/msg/drive.hpp"
-#include "clearpath_platform_msgs/msg/feedback.hpp"
-
-namespace clearpath_hardware_interfaces
+/**
+ * @brief Construct a new DiffDriveSimHardwareInterface object
+ *
+ */
+DiffDriveSimHardwareInterface::DiffDriveSimHardwareInterface(std::string node_name="diff_drive_sim_hardware_interface")
+: Node(node_name)
 {
+    // Initialize Publishers
+    left_wheel_pub_ = this->create_publisher<std_msgs::msg::Float32>("/platform_velocity_controller/left_wheel_velocity", 10);
+    right_wheel_pub_ = this->create_publisher<std_msgs::msg::Float32>("/platform_velocity_controller/right_wheel_velocity", 10);
+}
 
-class DiffDriveHardwareInterfaceSim: public rclcpp::Node
+/**
+ * @brief Publish Drive message
+ *
+ * @param left_wheel Left wheel command
+ * @param right_wheel Right wheel command
+ * @param mode Command mode
+ */
+void DiffDriveSimHardwareInterface::drive_command(const float & left_wheel, const float & right_wheel, const int8_t & mode)
 {
-  public:
-  explicit DiffDriveHardwareInterfaceSim(std::string node_name);
-  void drive_command(const float & left_wheel, const float & right_wheel, const int8_t & mode);
-  clearpath_platform_msgs::msg::Feedback get_feedback();
+    auto left_msg = std_msgs::msg::Float32();
+    left_msg.data = left_wheel;
+    left_wheel_pub_->publish(left_msg);
 
-  private:
-  void feedback_callback(const clearpath_platform_msgs::msg::Feedback::SharedPtr msg);
-
-  rclcpp::Publisher<clearpath_platform_msgs::msg::Drive>::SharedPtr drive_pub_;
-  rclcpp::Subscription<clearpath_platform_msgs::msg::Feedback>::SharedPtr feedback_sub_;
-
-  clearpath_platform_msgs::msg::Feedback feedback_;
-  std::mutex feedback_mutex_;
-};
-
-}  // namespace clearpath_hardware_interfaces
-
-#endif  // CLEARPATH_ROBOTS_SIM__DIFF_DRIVE_HARDWARE_INTERFACE_HPP_
+    auto right_msg = std_msgs::msg::Float32();
+    right_msg.data = right_wheel;
+    right_wheel_pub_->publish(right_msg);
+}
