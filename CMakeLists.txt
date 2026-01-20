@@ -14,6 +14,12 @@ find_package(rclcpp REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(Eigen3)
+
+include_directories(
+  ${EIGEN3_INCLUDE_DIRS}
+  include
+)
 
 
 add_library(clearpath_robots_sim SHARED
