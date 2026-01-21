@@ -15,19 +15,45 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(Eigen3)
+# for using casadi
+find_package(casadi REQUIRED)
+# For multi threading
+find_package(Threads REQUIRED)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
   include
+  SYSTEM ${CASADI_INCLUDE_DIR}
 )
 
+# set casadi include directory
+set(CASADI_INCLUDE_DIR /usr/local/include/casadi)
+
+# find casadi library
+find_library(CASADI_LIBRARY
+    NAMES casadi
+    HINTS ${CASADI_INCLUDE_DIR}/../lib $ENV{CASADI_PREFIX}/lib)
+if(CASADI_LIBRARY)
+    set(CASADI_LIBRARIES ${CASADI_LIBRARIES} ${CASADI_LIBRARY})
+endif()
+
+link_directories(${LIBRARY_DIRS})
 
 add_library(clearpath_robots_sim SHARED
   src/hardware_interfaces/diff_drive/hardware.cpp
   src/hardware_interfaces/diff_drive/hardware_interface.cpp
 )
 
+add_library(clearpath_robots_sim__path_followers SHARED
+  src/path_followers/MPC/mpc_controller.cpp
+)
+
 target_include_directories(clearpath_robots_sim PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+target_include_directories(clearpath_robots_sim__path_followers PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
@@ -52,6 +78,14 @@ install(
 )
 
 install(
+  TARGETS clearpath_robots_sim__path_followers
+  EXPORT export_clearpath_robots_sim__path_followers
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+install(
   DIRECTORY include/
   DESTINATION include
 )
@@ -70,17 +104,8 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+# casadi basic operations
+add_executable(example_basic_operations tests/example_basic_operations.cpp)
+target_link_libraries(example_basic_operations ${CASADI_LIBRARIES})
 
 ament_package()
