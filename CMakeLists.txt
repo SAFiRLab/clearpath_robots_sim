@@ -11,33 +11,20 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(tf2 REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(Eigen3)
-# for using casadi
-find_package(casadi REQUIRED)
-# For multi threading
-find_package(Threads REQUIRED)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
   include
-  SYSTEM ${CASADI_INCLUDE_DIR}
 )
 
-# set casadi include directory
-set(CASADI_INCLUDE_DIR /usr/local/include/casadi)
-
-# find casadi library
-find_library(CASADI_LIBRARY
-    NAMES casadi
-    HINTS ${CASADI_INCLUDE_DIR}/../lib $ENV{CASADI_PREFIX}/lib)
-if(CASADI_LIBRARY)
-    set(CASADI_LIBRARIES ${CASADI_LIBRARIES} ${CASADI_LIBRARY})
-endif()
-
-link_directories(${LIBRARY_DIRS})
 
 add_library(clearpath_robots_sim SHARED
   src/hardware_interfaces/diff_drive/hardware.cpp
@@ -62,6 +49,15 @@ ament_target_dependencies(clearpath_robots_sim
   rclcpp
   hardware_interface
   pluginlib
+)
+
+ament_target_dependencies(clearpath_robots_sim__path_followers
+  rclcpp
+  tf2
+  Eigen3
+  geometry_msgs
+  nav_msgs
+  sensor_msgs
 )
 
 pluginlib_export_plugin_description_file(
@@ -104,8 +100,15 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# casadi basic operations
-add_executable(example_basic_operations tests/example_basic_operations.cpp)
-target_link_libraries(example_basic_operations ${CASADI_LIBRARIES})
+# MPC controller node
+add_executable(mpc_controller_node src/path_followers/MPC/mpc_controller_node.cpp)
+target_link_libraries(mpc_controller_node
+  clearpath_robots_sim__path_followers
+)
+
+install(
+  TARGETS mpc_controller_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()

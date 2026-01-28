@@ -11,20 +11,24 @@ class DynamicModel
 {
 public:
 
-    DynamicModel(unsigned int state_size, unsigned int control_size)
-    : state_size_(state_size), control_size_(control_size)
+    DynamicModel(unsigned int state_size, unsigned int control_size, unsigned int output_size)
+    : state_size_(state_size), control_size_(control_size), output_size_(output_size)
     {}
 
     virtual Eigen::VectorXd fx(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt) = 0;
+    virtual void linearize(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt,
+                           Eigen::MatrixXd &A, Eigen::MatrixXd &B, Eigen::MatrixXd &C) = 0;
 
     unsigned int getStateSize() const { return state_size_; };
     unsigned int getControlSize() const { return control_size_; };
+    unsigned int getOutputSize() const { return output_size_; };
 
 protected:
 
     // User-defined attributes
     unsigned int state_size_;
     unsigned int control_size_;
+    unsigned int output_size_;
 
 }; // class DynamicModel
 

@@ -8,38 +8,85 @@
 // Local
 #include "clearpath_robots_sim/path_followers/path_follower_controller.hpp"
 
+// System
+#include <memory>
+#include <mutex>
+#include <thread>
+
+// ROS2
+#include "rclcpp/rclcpp.hpp"
+// ROS Messages
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+
 
 namespace clearpath_robots_sim
 {
 
-class MPCController : public PathFollowerController
+struct RobotState
+{
+    double x;
+    double y;
+    double yaw;
+    double velocity;
+    double yaw_rate;
+
+    double stamp;
+
+    bool init = false;
+}; // RobotState
+
+
+class MPCController : public PathFollowerController, public rclcpp::Node
 {
 public:
-    MPCController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model, unsigned int horizon, unsigned int step_size)
-    : PathFollowerController(dt, max_iterations, dynamic_model), horizon_(horizon), step_size_(step_size)
-    {
-        // Define cost matrices Q and R
-        unsigned int state_size = dynamic_model_->getStateSize();
-        unsigned int control_size = dynamic_model_->getControlSize();
+    MPCController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
+                  unsigned int horizon);
 
-        Q_ = Eigen::MatrixXd::Zero(state_size, state_size);
-        Q_.diagonal() << 10.0, 10.0, 5.0, 1.0, 1.0;
-
-        R_ = Eigen::MatrixXd::Zero(control_size, control_size);
-        R_.diagonal() << 0.5, 0.2;
-    }
-
-    Eigen::MatrixXd solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &reference) override;
-
+    void solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &reference) override;
 
 private:
 
+    Eigen::VectorXd solveQP();
+    void trajectoryFollowerThread(const Eigen::MatrixXd &reference);
+    void publishControlInput();
+    void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
+    void currentPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg);
+
     // User-defined attributes
     unsigned int horizon_;
-    unsigned int step_size_;
 
+    Eigen::VectorXd control_input_to_publish_;
+
+    std::mutex control_input_mutex_;
+    std::mutex current_robot_state_pose_mutex_;
+    std::mutex current_robot_state_imu_mutex_;
+    RobotState current_robot_state_;
+    std::thread trajectory_follower_thread_;
+
+    rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr control_input_publisher_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_subscription_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr current_pose_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
+
+    // Linearized system matrices
+    Eigen::MatrixXd A_;
+    Eigen::MatrixXd B_;
+    Eigen::MatrixXd C_;
+
+    // Cost matrices
     Eigen::MatrixXd Q_;
+
+    // Lifted matrices
+    Eigen::VectorXd alpha_;
     Eigen::MatrixXd R_;
+
+    // QP
+    Eigen::MatrixXd P_;
+    Eigen::MatrixXd q_;
 
 }; // class MPCController
 

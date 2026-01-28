@@ -35,7 +35,7 @@ class DiffDriveModel : public DynamicModel
 {
 public:
     DiffDriveModel(const DiffDriveConstraints &constraints, const float track_width)
-    : DynamicModel(5, 2), constraints_(constraints), track_width_(track_width)
+    : DynamicModel(5, 2, 2), constraints_(constraints), track_width_(track_width)
     {}
 
     Eigen::VectorXd fx(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt) override
@@ -51,6 +51,25 @@ public:
         next_state(4) = state(4) + dt * control_input(1);
 
         return next_state;
+    }
+
+    void linearize(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt,
+                   Eigen::MatrixXd &A, Eigen::MatrixXd &B, Eigen::MatrixXd &C) override
+    {
+        A = Eigen::MatrixXd::Identity(state_size_, state_size_);
+        A(0,2) = -dt * state(3) * std::sin(state(2));
+        A(0,3) = dt * std::cos(state(2));
+        A(1,2) = dt * state(3) * std::cos(state(2));
+        A(1,3) = dt * std::sin(state(2));
+        A(2,4) = dt;
+
+        B = Eigen::MatrixXd::Zero(state_size_, control_size_);
+        B(3,0) = dt;
+        B(4,1) = dt;
+
+        C = Eigen::MatrixXd::Zero(output_size_, state_size_);
+        C(0, 0) = 1.0; // X
+        C(1, 1) = 1.0; // Y
     }
 
 private:
