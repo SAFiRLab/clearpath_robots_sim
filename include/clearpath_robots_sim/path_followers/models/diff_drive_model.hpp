@@ -35,7 +35,7 @@ class DiffDriveModel : public DynamicModel
 {
 public:
     DiffDriveModel(const DiffDriveConstraints &constraints, const float track_width)
-    : DynamicModel(5, 2, 2), constraints_(constraints), track_width_(track_width)
+    : DynamicModel(5, 2, 3), constraints_(constraints), track_width_(track_width)
     {}
 
     Eigen::VectorXd fx(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt) override
@@ -70,13 +70,15 @@ public:
         C = Eigen::MatrixXd::Zero(output_size_, state_size_);
         C(0, 0) = 1.0; // X
         C(1, 1) = 1.0; // Y
+        C(2, 2) = 1.0; // yaw
     }
+
+    DiffDriveConstraints constraints_;
 
 private:
 
     // User-defined attributes
     float track_width_; // Distance between left and right wheels
-    DiffDriveConstraints constraints_;
 
 }; // class DiffDriveModel
 

@@ -7,6 +7,7 @@
 
 // Local
 #include "clearpath_robots_sim/path_followers/path_follower_controller.hpp"
+#include "clearpath_robots_sim/path_followers/MPC/trajectory_generator.hpp"
 
 // System
 #include <memory>
@@ -33,7 +34,7 @@ struct RobotState
     double velocity;
     double yaw_rate;
 
-    double stamp;
+    rclcpp::Time stamp;
 
     bool init = false;
 }; // RobotState
@@ -50,7 +51,7 @@ public:
 private:
 
     Eigen::VectorXd solveQP();
-    void trajectoryFollowerThread(const Eigen::MatrixXd &reference);
+    void trajectoryFollowerThread(const std::vector<TrajectoryPoint> &reference_traj);
     void publishControlInput();
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
     void currentPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
@@ -71,6 +72,7 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_subscription_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr current_pose_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
+    rclcpp::TimerBase::SharedPtr publish_control_timer_;
 
     // Linearized system matrices
     Eigen::MatrixXd A_;
@@ -87,6 +89,8 @@ private:
     // QP
     Eigen::MatrixXd P_;
     Eigen::MatrixXd q_;
+
+    TrajectoryGenerator trajectory_generator_;
 
 }; // class MPCController
 
