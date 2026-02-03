@@ -35,42 +35,56 @@ class DiffDriveModel : public DynamicModel
 {
 public:
     DiffDriveModel(const DiffDriveConstraints &constraints, const float track_width)
-    : DynamicModel(5, 2, 3), constraints_(constraints), track_width_(track_width)
+    : DynamicModel(5, 2, 5), constraints_(constraints), track_width_(track_width)
     {}
 
-    Eigen::VectorXd fx(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt) override
+    casadi::MX f(const casadi::MX &x, const casadi::MX &u, const casadi::MX &dt) override
     {
-        // x <- [X, Y, yaw, velocity, yaw rate]
-        // control_input <- [acceleration, yaw acceleration]
+        casadi::MX x_next = casadi::MX::zeros(state_size_, 1);
 
-        Eigen::VectorXd next_state(state.size());
-        next_state(0) = state(0) + dt * state(3) * std::cos(state(2));
-        next_state(1) = state(1) + dt * state(3) * std::sin(state(2));
-        next_state(2) = state(2) + dt * state(4);
-        next_state(3) = state(3) + dt * control_input(0);
-        next_state(4) = state(4) + dt * control_input(1);
+        x_next(0) = x(0) + dt * x(3) * cos(x(2));
+        x_next(1) = x(1) + dt * x(3) * sin(x(2));
+        x_next(2) = x(2) + dt * x(4);
+        x_next(3) = x(3) + dt * u(0);
+        x_next(4) = x(4) + dt * u(1);
 
-        return next_state;
+        return x_next;
     }
 
-    void linearize(const Eigen::VectorXd &state, const Eigen::VectorXd &control_input, const double dt,
-                   Eigen::MatrixXd &A, Eigen::MatrixXd &B, Eigen::MatrixXd &C) override
+    void getStateBounds(std::vector<double> &lb, std::vector<double> &ub) const
     {
-        A = Eigen::MatrixXd::Identity(state_size_, state_size_);
-        A(0,2) = -dt * state(3) * std::sin(state(2));
-        A(0,3) = dt * std::cos(state(2));
-        A(1,2) = dt * state(3) * std::cos(state(2));
-        A(1,3) = dt * std::sin(state(2));
-        A(2,4) = dt;
+        lb.assign(state_size_, -casadi::inf);
+        ub.assign(state_size_,  casadi::inf);
 
-        B = Eigen::MatrixXd::Zero(state_size_, control_size_);
-        B(3,0) = dt;
-        B(4,1) = dt;
+        if (constraints_.min_max_velocity_set)
+        {
+            lb[3] = constraints_.min_velocity;
+            ub[3] = constraints_.max_velocity;
+        }
 
-        C = Eigen::MatrixXd::Zero(output_size_, state_size_);
-        C(0, 0) = 1.0; // X
-        C(1, 1) = 1.0; // Y
-        C(2, 2) = 1.0; // yaw
+        if (constraints_.min_max_yaw_rate_set)
+        {
+            lb[4] = constraints_.min_yaw_rate;
+            ub[4] = constraints_.max_raw_rate;
+        }
+    }
+
+    void getControlBounds(std::vector<double> &lb,  std::vector<double> &ub) const override
+    {
+        lb.assign(control_size_, -casadi::inf);
+        ub.assign(control_size_,  casadi::inf);
+
+        if (constraints_.min_max_acceleration_set)
+        {
+            lb[0] = -constraints_.max_deceleration;
+            ub[0] =  constraints_.max_acceleration;
+        }
+
+        if (constraints_.min_max_yaw_acceleration_set)
+        {
+            lb[1] = -constraints_.max_yaw_deceleration;
+            ub[1] =  constraints_.max_yaw_acceleration;
+        }
     }
 
     DiffDriveConstraints constraints_;

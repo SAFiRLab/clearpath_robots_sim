@@ -19,10 +19,26 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(Eigen3)
+find_package(casadi REQUIRED)
+find_package(Threads REQUIRED)
+
+# set the Ipopt library and include directory
+set(LIBRARY_DIRS /usr/local/lib)
+if(UNIX AND NOT APPLE)
+    set(IPOPT_INCLUDE_DIRS /usr/include/coin)
+elseif(APPLE)
+    set(IPOPT_INCLUDE_DIRS /usr/local/include/coin-or)
+endif()
+
+set(CASADI_INCLUDE_DIR /usr/local/include/casadi)
+
+#list(APPEND CMAKE_PREFIX_PATH "/usr/local/lib")
 
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
   include
+  ${CASADI_INCLUDE_DIRS}
+  ${IPOPT_INCLUDE_DIRS}
 )
 
 
@@ -58,6 +74,11 @@ ament_target_dependencies(clearpath_robots_sim__path_followers
   geometry_msgs
   nav_msgs
   sensor_msgs
+)
+
+target_link_libraries(clearpath_robots_sim__path_followers
+  casadi
+  ipopt
 )
 
 pluginlib_export_plugin_description_file(
@@ -104,10 +125,24 @@ install(
 add_executable(mpc_controller_node src/path_followers/MPC/mpc_controller_node.cpp)
 target_link_libraries(mpc_controller_node
   clearpath_robots_sim__path_followers
+  ipopt
+  casadi
 )
 
 install(
   TARGETS mpc_controller_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+add_executable(example_racecar tests/example_racecar.cpp)
+target_link_libraries(example_racecar
+  clearpath_robots_sim__path_followers
+  ipopt
+  casadi
+)
+
+install(
+  TARGETS example_racecar
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -46,11 +46,13 @@ public:
     MPCController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
                   unsigned int horizon);
 
+    ~MPCController();
+
     void solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &reference) override;
 
 private:
 
-    Eigen::VectorXd solveQP();
+    void buildSolver();
     void trajectoryFollowerThread(const std::vector<TrajectoryPoint> &reference_traj);
     void publishControlInput();
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
@@ -69,26 +71,16 @@ private:
     std::thread trajectory_follower_thread_;
 
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr control_input_publisher_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr traj_publisher_;
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_subscription_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr current_pose_subscription_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscription_;
     rclcpp::TimerBase::SharedPtr publish_control_timer_;
 
-    // Linearized system matrices
-    Eigen::MatrixXd A_;
-    Eigen::MatrixXd B_;
-    Eigen::MatrixXd C_;
-
-    // Cost matrices
-    Eigen::MatrixXd Q_;
-
-    // Lifted matrices
-    Eigen::VectorXd alpha_;
-    Eigen::MatrixXd R_;
-
-    // QP
-    Eigen::MatrixXd P_;
-    Eigen::MatrixXd q_;
+    casadi::Function solver_;
+    casadi::DM lbx_, ubx_, lbg_, ubg_;
+    casadi::DM x0_param_, xref_param_;
+    bool solver_built_ = false;
 
     TrajectoryGenerator trajectory_generator_;
 

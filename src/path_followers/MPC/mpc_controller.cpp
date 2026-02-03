@@ -4,6 +4,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 
 #include <iostream>
+#include <casadi/casadi.hpp>
 
 
 namespace clearpath_robots_sim
@@ -14,23 +15,12 @@ MPCController::MPCController(double dt, unsigned int max_iterations, std::shared
 : PathFollowerController(dt, max_iterations, dynamic_model), Node("mpc_path_follower"), horizon_(horizon), 
 trajectory_generator_(std::dynamic_pointer_cast<DiffDriveModel>(dynamic_model_), dt_)
 {
-    A_ = Eigen::MatrixXd::Zero(state_size_, state_size_);
-    B_ = Eigen::MatrixXd::Zero(state_size_, control_size_);
-    C_ = Eigen::MatrixXd::Zero(output_size_, state_size_);
-
-    Q_ = Eigen::MatrixXd::Identity(horizon_ * output_size_, horizon_ * output_size_);
-
-    alpha_ = Eigen::VectorXd::Zero(horizon_ * state_size_);
-    R_ = Eigen::MatrixXd::Zero(horizon_ * state_size_, horizon_ * control_size_);
-
-    P_ = Eigen::MatrixXd::Zero(horizon_ * control_size_, horizon_ * control_size_);
-    q_ = Eigen::VectorXd::Zero(horizon_ * control_size_);
-
     control_input_to_publish_ = Eigen::VectorXd::Zero(control_size_);
 
     // ROS2
     // Publisher
     control_input_publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>("/platform_velocity_controller/cmd_vel", 10);
+    traj_publisher_ = this->create_publisher<nav_msgs::msg::Path>("/traj_from_ref", 10);
 
     // Subscriptions
     path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
@@ -47,59 +37,125 @@ trajectory_generator_(std::dynamic_pointer_cast<DiffDriveModel>(dynamic_model_),
     current_robot_state_.stamp = this->get_clock()->now();
 }
 
-void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &reference)
+void MPCController::buildSolver()
 {
-    //std::cout << "MPCController::solve started" << std::endl;
-    // TODO: How to define the control_state for linearization? Might be better to take the current control input
-    dynamic_model_->linearize(state, Eigen::VectorXd::Zero(control_size_), dt_, A_, B_, C_);
+    int nx = state_size_;
+    int nu = control_size_;
+    int N  = horizon_;
 
-    R_.setZero();
-    Eigen::MatrixXd A_k = A_;
-    for (unsigned int k = 0; k < horizon_; k++)
+    // Decision variables
+    casadi::MX X = casadi::MX::sym("X", nx, N + 1);
+    casadi::MX U = casadi::MX::sym("U", nu, N);
+
+    // Parameters
+    casadi::MX x0   = casadi::MX::sym("x0", nx);
+    casadi::MX Xref = casadi::MX::sym("Xref", nx, N);
+
+    // Cost
+    casadi::MX cost = 0;
+    casadi::DM Q = casadi::DM::eye(nx);
+    casadi::DM R = casadi::DM::eye(nu) * 0.1;
+
+    for (int k = 0; k < N; ++k)
     {
-        alpha_.segment(k * state_size_, state_size_) = A_k * state;
-
-        for (unsigned int j = 0; j <= k; ++j)
-        {
-            Eigen::MatrixXd A_power = Eigen::MatrixXd::Identity(state_size_, state_size_);
-            for (unsigned int p = 0; p < k - j; ++p)
-                A_power = A_ * A_power;
-
-            R_.block(k * state_size_, j * control_size_, state_size_, control_size_) = A_power * B_;
-        }
-
-        A_k = A_ * A_k;
+        casadi::MX e = X(casadi::Slice(), k) - Xref(casadi::Slice(), k);
+        cost += mtimes(e.T(), mtimes(Q, e));
+        cost += mtimes(U(casadi::Slice(), k).T(), mtimes(R, U(casadi::Slice(), k)));
     }
 
-    Eigen::MatrixXd Cy = Eigen::MatrixXd::Zero(horizon_ * output_size_, horizon_ * state_size_);
-    for (unsigned int k = 0; k < horizon_; ++k)
-        Cy.block(k * output_size_, k * state_size_, output_size_, state_size_) = C_;
+    // Constraints
+    std::vector<casadi::MX> g;
 
-    Eigen::VectorXd alpha_y = Cy * alpha_;
-    Eigen::MatrixXd R_y = Cy * R_;
+    // Initial condition
+    g.push_back(X(casadi::Slice(), 0) - x0);
 
-    Eigen::VectorXd reference_vector(horizon_ * output_size_);
-    for (unsigned int k = 0; k < horizon_; ++k)
-        reference_vector.segment(k * output_size_, output_size_) = reference.col(k);
+    // Dynamics
+    for (int k = 0; k < N; ++k)
+    {
+        casadi::MX x_next = dynamic_model_->f(X(casadi::Slice(), k), U(casadi::Slice(), k), dt_);
+        g.push_back(X(casadi::Slice(), k + 1) - x_next);
+    }
 
-    Eigen::VectorXd f = alpha_y - reference_vector;
-    P_ = R_y.transpose() * Q_ * R_y;
-    q_ = R_y.transpose() * Q_ * f;
+    casadi::MX G = vertcat(g);
 
-    Eigen::VectorXd u_opt = solveQP();
+    // NLP
+    casadi::MXDict nlp;
+    nlp["x"] = casadi::MX::vertcat({reshape(X, nx * (N + 1), 1),
+                        reshape(U, nu * N, 1)});
+    nlp["f"] = cost;
+    nlp["g"] = G;
+    nlp["p"] = casadi::MX::vertcat({x0, reshape(Xref, nx * N, 1)});
 
-    // U_opt = [accel, yaw_accel]
-    // We control the robot in velocity and angular velocity
-    control_input_mutex_.lock();
-    control_input_to_publish_(0) = u_opt(0) * dt_;
-    control_input_to_publish_(1) = u_opt(1) * dt_;
-    control_input_mutex_.unlock();
+    solver_ = nlpsol("solver", "ipopt", nlp);
+
+    // ---------- Bounds ----------
+    std::vector<double> x_lb, x_ub, u_lb, u_ub;
+    dynamic_model_->getStateBounds(x_lb, x_ub);
+    dynamic_model_->getControlBounds(u_lb, u_ub);
+
+    std::vector<double> lbx, ubx;
+
+    // State bounds
+    for (int k = 0; k <= N; ++k)
+    {
+        lbx.insert(lbx.end(), x_lb.begin(), x_lb.end());
+        ubx.insert(ubx.end(), x_ub.begin(), x_ub.end());
+    }
+
+    // Control bounds
+    for (int k = 0; k < N; ++k)
+    {
+        lbx.insert(lbx.end(), u_lb.begin(), u_lb.end());
+        ubx.insert(ubx.end(), u_ub.begin(), u_ub.end());
+    }
+
+    lbx_ = casadi::DM(lbx);
+    ubx_ = casadi::DM(ubx);
+
+    lbg_ = casadi::DM::zeros(G.size1());
+    ubg_ = casadi::DM::zeros(G.size1());
+
+    solver_built_ = true;
 }
 
-Eigen::VectorXd MPCController::solveQP()
+void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &reference)
 {
-    //std::cout << "Solving QP..." << std::endl;
-    return -P_.ldlt().solve(q_);
+    if (!solver_built_)
+        buildSolver();
+
+    using namespace casadi;
+
+    // Pack parameters
+    std::vector<double> p;
+
+    // x0
+    for (int i = 0; i < state_size_; ++i)
+        p.push_back(state(i));
+
+    // Xref
+    for (int k = 0; k < horizon_; ++k)
+        for (int i = 0; i < state_size_; ++i)
+            p.push_back(reference(i, k));
+
+    std::map<std::string, DM> args;
+    args["lbx"] = lbx_;
+    args["ubx"] = ubx_;
+    args["lbg"] = lbg_;
+    args["ubg"] = ubg_;
+    args["p"]   = DM(p);
+
+    auto res = solver_(args);
+    DM sol = res.at("x");
+
+    // Extract first control
+    int offset = state_size_ * (horizon_ + 1);
+    double a   = static_cast<double>(sol(offset));
+    double yaw_acc = static_cast<double>(sol(offset + 1));
+
+    control_input_mutex_.lock();
+    control_input_to_publish_(0) = a * dt_;
+    control_input_to_publish_(1) = yaw_acc * dt_;
+    control_input_mutex_.unlock();
 }
 
 // This function publishes the control input to a ROS2 topic at a spcecified rate
@@ -128,13 +184,25 @@ void MPCController::pathCallback(const nav_msgs::msg::Path::SharedPtr msg)
             reference_path.push_back(point);
         }
         std::vector<TrajectoryPoint> traj = trajectory_generator_.generateTrajectory(reference_path);
+
+        // Publish traj
+        /*nav_msgs::msg::Path traj_msg;
+        for (size_t i = 0; i < traj.size(); i++)
+        {
+            geometry_msgs::msg::PoseStamped pose;
+            pose.pose.position.x = traj.at(i).position(1);
+            pose.pose.position.z = traj.at(i).position(0);
+            pose.pose.position.y = 1.0;
+            traj_msg.poses.push_back(pose);
+        }
+        traj_publisher_->publish(traj_msg);*/
+
         trajectory_follower_thread_ = std::thread(&MPCController::trajectoryFollowerThread, this, traj);
     }
 }
 
 void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> &reference_traj)
 {
-    std::cout << "Starting trajectory follower thread..." << std::endl;
     unsigned int reference_size = reference_traj.size();
     unsigned int current_ref_idx = 0;
     std::vector<unsigned int> reached_indices;
@@ -143,7 +211,7 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
     Eigen::IOFormat fmt(3, 0, ", ", "\n", "[", "]");
     //std::cout << "A:\n" << reference.format(fmt) << std::endl;
 
-    rclcpp::Rate rate(1.0 / dt_);
+    rclcpp::Rate rate(1.0 / 0.01);
 
     while (rclcpp::ok() && current_ref_idx < reference_size)
     {
@@ -167,7 +235,7 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
                 continue;
 
             double dist = std::sqrt(std::pow(state(0) - reference_traj.at(i).position(0), 2) + std::pow(state(1) - reference_traj.at(i).position(1), 2));
-            if (dist < 0.1)
+            if (dist < 0.01)
             {
                 reached_indices.push_back(i);
                 current_ref_idx = i;
@@ -198,16 +266,31 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
                 mpc_reference(0, k) = reference_traj.back().position(0);
                 mpc_reference(1, k) = reference_traj.back().position(1);
                 mpc_reference(2, k) = reference_traj.back().yaw;
+                mpc_reference(3, k) = reference_traj.back().velocity;
+                mpc_reference(4, k) = reference_traj.back().yaw_rate;
             }
             else
             {
                 mpc_reference(0, k) = reference_traj.at(current_ref_idx + k).position(0);
                 mpc_reference(1, k) = reference_traj.at(current_ref_idx + k).position(1);
                 mpc_reference(2, k) = reference_traj.at(current_ref_idx + k).yaw;
+                mpc_reference(3, k) = reference_traj.at(current_ref_idx + k).velocity;
+                mpc_reference(4, k) = reference_traj.at(current_ref_idx + k).yaw_rate;
             }
         }
 
-        std::cout << "B:\n" << mpc_reference.format(fmt) << std::endl;
+        //std::cout << "B:\n" << mpc_reference.format(fmt) << std::endl;
+
+        nav_msgs::msg::Path traj_msg;
+        for (size_t i = 0; i < horizon_; i++)
+        {
+            geometry_msgs::msg::PoseStamped pose;
+            pose.pose.position.x = mpc_reference(1, i);
+            pose.pose.position.z = mpc_reference(0, i);
+            pose.pose.position.y = 1.0;
+            traj_msg.poses.push_back(pose);
+        }
+        traj_publisher_->publish(traj_msg);
 
         // Solve MPC
         solve(state, mpc_reference);
@@ -245,5 +328,8 @@ void MPCController::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
     current_robot_state_.yaw_rate = msg->angular_velocity.z;
     current_robot_state_imu_mutex_.unlock();
 }
+
+MPCController::~MPCController()
+{}
 
 }; // namespace clearpath_robots_sim
