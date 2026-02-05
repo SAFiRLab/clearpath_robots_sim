@@ -10,8 +10,8 @@
 namespace clearpath_robots_sim
 {
 
-MPCController::MPCController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
-                  unsigned int horizon)
+MPCController::MPCController(double dt, int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
+                  int horizon)
 : PathFollowerController(dt, max_iterations, dynamic_model), Node("mpc_path_follower"), horizon_(horizon), 
 trajectory_generator_(std::dynamic_pointer_cast<DiffDriveModel>(dynamic_model_), dt_)
 {
@@ -41,6 +41,7 @@ void MPCController::buildSolver()
 {
     int nx = state_size_;
     int nu = control_size_;
+    int no = output_size_;
     int N  = horizon_;
 
     // Decision variables
@@ -49,11 +50,14 @@ void MPCController::buildSolver()
 
     // Parameters
     casadi::MX x0   = casadi::MX::sym("x0", nx);
-    casadi::MX Xref = casadi::MX::sym("Xref", nx, N);
+    casadi::MX Xref = casadi::MX::sym("Xref", no, N);
 
     // Cost
     casadi::MX cost = 0;
-    casadi::DM Q = casadi::DM::eye(nx);
+    casadi::DM Q = casadi::DM::eye(no);
+    /*Q(0, 0) = 1.0;
+    Q(1, 1) = 1.0;
+    Q(2, 2) = 20.0;*/
     casadi::DM R = casadi::DM::eye(nu) * 0.1;
 
     for (int k = 0; k < N; ++k)
@@ -62,6 +66,9 @@ void MPCController::buildSolver()
         cost += mtimes(e.T(), mtimes(Q, e));
         cost += mtimes(U(casadi::Slice(), k).T(), mtimes(R, U(casadi::Slice(), k)));
     }
+
+    casadi::MX eN = X(casadi::Slice(), N) - Xref(casadi::Slice(), N-1);
+    cost += mtimes(eN.T(), mtimes(Q, eN));
 
     // Constraints
     std::vector<casadi::MX> g;
@@ -80,13 +87,16 @@ void MPCController::buildSolver()
 
     // NLP
     casadi::MXDict nlp;
-    nlp["x"] = casadi::MX::vertcat({reshape(X, nx * (N + 1), 1),
-                        reshape(U, nu * N, 1)});
+    nlp["x"] = casadi::MX::vertcat({reshape(X, nx * (N + 1), 1), reshape(U, nu * N, 1)});
     nlp["f"] = cost;
     nlp["g"] = G;
-    nlp["p"] = casadi::MX::vertcat({x0, reshape(Xref, nx * N, 1)});
+    nlp["p"] = casadi::MX::vertcat({x0, reshape(Xref, no * N, 1)});
 
-    solver_ = nlpsol("solver", "ipopt", nlp);
+    casadi::Dict opts;
+    opts["ipopt.print_level"] = 5;
+    opts["ipopt.warm_start_init_point"] = "yes";
+
+    solver_ = nlpsol("solver", "ipopt", nlp, opts);
 
     // ---------- Bounds ----------
     std::vector<double> x_lb, x_ub, u_lb, u_ub;
@@ -125,6 +135,12 @@ void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &r
 
     using namespace casadi;
 
+    if (first_solve_)
+    {
+        x_init_ = DM::zeros(state_size_ * (horizon_ + 1) + control_size_ * horizon_);
+        first_solve_ = false;
+    }
+
     // Pack parameters
     std::vector<double> p;
 
@@ -138,6 +154,7 @@ void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &r
             p.push_back(reference(i, k));
 
     std::map<std::string, DM> args;
+    args["x0"] = x_init_;
     args["lbx"] = lbx_;
     args["ubx"] = ubx_;
     args["lbg"] = lbg_;
@@ -146,19 +163,56 @@ void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &r
 
     auto res = solver_(args);
     DM sol = res.at("x");
+    warmStartState(res);
 
-    // Extract first control
     int offset = state_size_ * (horizon_ + 1);
-    double a   = static_cast<double>(sol(offset));
-    double yaw_acc = static_cast<double>(sol(offset + 1));
+    double vel   = static_cast<double>(sol(offset));
+    double yaw_rate = static_cast<double>(sol(offset + 1));
 
     control_input_mutex_.lock();
-    control_input_to_publish_(0) = a * dt_;
-    control_input_to_publish_(1) = yaw_acc * dt_;
+    control_input_to_publish_(0) = vel;
+    control_input_to_publish_(1) = yaw_rate;
     control_input_mutex_.unlock();
 }
 
-// This function publishes the control input to a ROS2 topic at a spcecified rate
+void MPCController::warmStartState(casadi::DMDict &res)
+{
+    casadi::DM sol = res.at("x");
+
+    // Shift states
+    int nx = state_size_;
+    int nu = control_size_;
+
+    casadi::DM Xsol = sol(casadi::Slice(0, int(nx*(horizon_+1))));
+    casadi::DM Usol = sol(casadi::Slice(int(nx*(horizon_+1)), sol.size1()));
+
+    // Build new initial guess
+    casadi::DM x_next = casadi::DM::zeros(sol.size1());
+
+    // Shift X
+    for (int k = 0; k < horizon_; ++k)
+    {
+        x_next(casadi::Slice(k*nx, (k+1)*nx)) =
+            Xsol(casadi::Slice((k+1)*nx, (k+2)*nx));
+    }
+
+    // Keep last state
+    x_next(casadi::Slice(int(horizon_*nx), int((horizon_+1)*nx))) = Xsol(casadi::Slice(int(horizon_*nx), int((horizon_+1)*nx)));
+
+    // Shift U
+    int u_offset = nx*(horizon_+1);
+    for (int k = 0; k < horizon_-1; ++k)
+    {
+        x_next(casadi::Slice(u_offset + k*nu, u_offset + (k+1)*nu)) =
+            Usol(casadi::Slice((k+1)*nu, (k+2)*nu));
+    }
+
+    // Repeat last control
+    x_next(casadi::Slice(int(u_offset + (horizon_-1)*nu), int(u_offset + horizon_*nu))) = Usol(casadi::Slice(int((horizon_-1)*nu), int(horizon_*nu)));
+
+    x_init_ = x_next;
+};
+
 void MPCController::publishControlInput()
 {
     control_input_mutex_.lock();
@@ -222,41 +276,53 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
         state(0) = current_robot_state_.x;
         state(1) = current_robot_state_.y;
         state(2) = current_robot_state_.yaw;
-        state(3) = current_robot_state_.velocity;
-        state(4) = current_robot_state_.yaw_rate;
         current_robot_state_pose_mutex_.unlock();
         current_robot_state_imu_mutex_.unlock();
 
-        double min_dist = std::numeric_limits<double>::max();
-        // Set the current reference index to the closest point on the path
-        for (size_t i = 0; i < reference_size; i++)
-        {
-            if (std::find(reached_indices.begin(), reached_indices.end(), i) != reached_indices.end())
-                continue;
+        size_t best_idx = current_ref_idx;
+        double best_s   = -std::numeric_limits<double>::infinity();
 
-            double dist = std::sqrt(std::pow(state(0) - reference_traj.at(i).position(0), 2) + std::pow(state(1) - reference_traj.at(i).position(1), 2));
-            if (dist < 0.01)
+        for (size_t i = current_ref_idx; i + 1 < reference_size && i < current_ref_idx + horizon_; ++i)
+        {
+            Eigen::Vector2d Pi = reference_traj[i].position;
+            Eigen::Vector2d Pj = reference_traj[i + 1].position;
+            Eigen::Vector2d robot_pos = Eigen::Vector2d(state(0), state(1));
+
+            Eigen::Vector2d t = Pj - Pi;
+            double len = t.norm();
+            if (len < 1e-6) continue;
+
+            Eigen::Vector2d t_hat = t / len;
+            Eigen::Vector2d d = robot_pos - Pi;
+
+            double s = d.dot(t_hat);
+            Eigen::Vector2d e = d - s * t_hat;
+            double e_ct = e.norm();
+
+           bool accept_projection = false;
+
+            // Allow "entry" to the path
+            if (current_ref_idx == 0)
             {
-                reached_indices.push_back(i);
-                current_ref_idx = i;
+                accept_projection = (e_ct < 0.5);
             }
-            else if (dist < min_dist)
+            else
             {
-                min_dist = dist;
-                current_ref_idx = i;
+                accept_projection = (s >= 0.0 && e_ct < 0.5);
+            }
+
+            if (accept_projection)
+            {
+                if (s > best_s)
+                {
+                    best_s   = s;
+                    best_idx = i;
+                }
             }
         }
+
+        current_ref_idx = best_idx;
         std::cout << "Current reference index: " << current_ref_idx << std::endl;
-
-        if (current_ref_idx >= reference_size - 1)
-        {
-            std::cout << "Reached the end of the reference path" << std::endl;
-            control_input_mutex_.lock();
-            control_input_to_publish_(0) = 0.0;
-            control_input_to_publish_(1) = 0.0;
-            control_input_mutex_.unlock();
-            break;
-        }
 
         Eigen::MatrixXd mpc_reference(output_size_, horizon_);
         for (unsigned int k = 0; k < horizon_; k++)
@@ -266,16 +332,12 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
                 mpc_reference(0, k) = reference_traj.back().position(0);
                 mpc_reference(1, k) = reference_traj.back().position(1);
                 mpc_reference(2, k) = reference_traj.back().yaw;
-                mpc_reference(3, k) = reference_traj.back().velocity;
-                mpc_reference(4, k) = reference_traj.back().yaw_rate;
             }
             else
             {
                 mpc_reference(0, k) = reference_traj.at(current_ref_idx + k).position(0);
                 mpc_reference(1, k) = reference_traj.at(current_ref_idx + k).position(1);
                 mpc_reference(2, k) = reference_traj.at(current_ref_idx + k).yaw;
-                mpc_reference(3, k) = reference_traj.at(current_ref_idx + k).velocity;
-                mpc_reference(4, k) = reference_traj.at(current_ref_idx + k).yaw_rate;
             }
         }
 
@@ -297,6 +359,12 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
 
         rate.sleep();
     }
+
+    std::cout << "Reached the end of the reference path" << std::endl;
+    control_input_mutex_.lock();
+    control_input_to_publish_(0) = 0.0;
+    control_input_to_publish_(1) = 0.0;
+    control_input_mutex_.unlock();
 }
 
 void MPCController::currentPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
@@ -313,8 +381,11 @@ void MPCController::currentPoseCallback(const geometry_msgs::msg::PoseStamped::S
     rclcpp::Time last(current_robot_state_.stamp);
     double dt = (now - last).seconds();
 
+    double dx = msg->pose.position.x - current_robot_state_.x;
+    double dy = msg->pose.position.y - current_robot_state_.y;
+
     current_robot_state_pose_mutex_.lock();
-    current_robot_state_.velocity = (msg->pose.position.x - current_robot_state_.x) / dt;
+    current_robot_state_.velocity = cos(yaw) * dx / dt + sin(yaw) * dy / dt;
     current_robot_state_.stamp = msg->header.stamp;
     current_robot_state_.x = msg->pose.position.x;
     current_robot_state_.y = msg->pose.position.y;

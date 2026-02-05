@@ -66,21 +66,29 @@ public:
             int steps = std::ceil(segment_time / dt_);
             for (int s = 1; s <= steps; ++s)
             {
-                double alpha = static_cast<double>(s) / steps;
+                const TrajectoryPoint &prev = trajectory.back();
 
-                // Linear interpolation for position
-                Eigen::Vector2d pos = path[i-1] + alpha * delta;
-
-                // Interpolate velocity with simple acceleration limit
-                double vel = prev_vel + alpha * accel * dt_;
+                // Velocity update
+                double vel = prev.velocity;
+                double dv = accel * dt_;
+                vel += std::clamp(dv,
+                                -c.max_deceleration * dt_,
+                                c.max_acceleration * dt_);
                 vel = std::clamp(vel, c.min_velocity, c.max_velocity);
 
-                // Interpolate yaw and compute yaw rate
-                double yaw = normalizeAngle(prev_yaw + alpha * yaw_diff);
+                // Yaw rate
                 double yaw_rate = yaw_diff / segment_time;
                 yaw_rate = std::clamp(yaw_rate, c.min_yaw_rate, c.max_raw_rate);
 
-                double time = prev_time + alpha * segment_time;
+                // Forward integrate
+                Eigen::Vector2d pos = prev.position;
+                double yaw = prev.yaw;
+
+                pos.x() += vel * std::cos(yaw) * dt_;
+                pos.y() += vel * std::sin(yaw) * dt_;
+                yaw = normalizeAngle(yaw + yaw_rate * dt_);
+
+                double time = prev.time + dt_;
 
                 trajectory.push_back({pos, yaw, vel, yaw_rate, time});
             }
@@ -93,10 +101,6 @@ public:
         return trajectory;
     }
 
-private:
-    std::shared_ptr<DiffDriveModel> model_;
-    double dt_;
-
     // Normalize angle to [-pi, pi]
     double normalizeAngle(double angle)
     {
@@ -104,6 +108,11 @@ private:
         while (angle < -M_PI) angle += 2*M_PI;
         return angle;
     }
+
+private:
+    std::shared_ptr<DiffDriveModel> model_;
+    double dt_;
+
 };
 
 } // namespace clearpath_robots_sim

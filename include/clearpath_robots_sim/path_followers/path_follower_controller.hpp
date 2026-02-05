@@ -17,7 +17,7 @@ namespace clearpath_robots_sim
 class PathFollowerController
 {
 public:
-    PathFollowerController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model)
+    PathFollowerController(double dt, int max_iterations, std::shared_ptr<DynamicModel> dynamic_model)
     : dt_(dt), max_iterations_(max_iterations), dynamic_model_(dynamic_model)
     {
         if (dynamic_model_)
@@ -35,10 +35,10 @@ protected:
 
     // User-defined attributes
     double dt_;
-    unsigned int max_iterations_;
-    unsigned int state_size_;
-    unsigned int control_size_;
-    unsigned int output_size_;
+    int max_iterations_;
+    int state_size_;
+    int control_size_;
+    int output_size_;
 
     std::shared_ptr<DynamicModel> dynamic_model_;
 

@@ -43,8 +43,8 @@ struct RobotState
 class MPCController : public PathFollowerController, public rclcpp::Node
 {
 public:
-    MPCController(double dt, unsigned int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
-                  unsigned int horizon);
+    MPCController(double dt, int max_iterations, std::shared_ptr<DynamicModel> dynamic_model,
+                  int horizon);
 
     ~MPCController();
 
@@ -53,6 +53,7 @@ public:
 private:
 
     void buildSolver();
+    void warmStartState(casadi::DMDict &res);
     void trajectoryFollowerThread(const std::vector<TrajectoryPoint> &reference_traj);
     void publishControlInput();
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
@@ -60,7 +61,7 @@ private:
     void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg);
 
     // User-defined attributes
-    unsigned int horizon_;
+    int horizon_;
 
     Eigen::VectorXd control_input_to_publish_;
 
@@ -79,8 +80,9 @@ private:
 
     casadi::Function solver_;
     casadi::DM lbx_, ubx_, lbg_, ubg_;
-    casadi::DM x0_param_, xref_param_;
     bool solver_built_ = false;
+    casadi::DM x_init_;
+    bool first_solve_ = true;
 
     TrajectoryGenerator trajectory_generator_;
 
