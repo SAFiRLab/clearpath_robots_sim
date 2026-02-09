@@ -79,6 +79,7 @@ private:
     rclcpp::TimerBase::SharedPtr publish_control_timer_;
 
     casadi::Function solver_;
+    casadi::Function debug_func_;
     casadi::DM lbx_, ubx_, lbg_, ubg_;
     bool solver_built_ = false;
     casadi::DM x_init_;

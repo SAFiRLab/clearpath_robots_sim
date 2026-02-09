@@ -55,20 +55,56 @@ void MPCController::buildSolver()
     // Cost
     casadi::MX cost = 0;
     casadi::DM Q = casadi::DM::eye(no);
-    /*Q(0, 0) = 1.0;
-    Q(1, 1) = 1.0;
-    Q(2, 2) = 20.0;*/
-    casadi::DM R = casadi::DM::eye(nu) * 0.1;
+    /*Q(0, 0) = 20.0;
+    Q(1, 1) = 20.0;
+    Q(2, 2) = 2.0;*/
+    casadi::DM R = casadi::DM::eye(nu) * 0.01;
+
+    std::vector<casadi::MX> x_err;
+    std::vector<casadi::MX> y_err;
+    std::vector<casadi::MX> yaw_err;
+    std::vector<casadi::MX> ctrl_costs;
+    std::vector<casadi::MX> state_costs;
 
     for (int k = 0; k < N; ++k)
     {
         casadi::MX e = X(casadi::Slice(), k) - Xref(casadi::Slice(), k);
+
+        x_err.push_back(e(0));
+        y_err.push_back(e(1));
+
+        casadi::MX yaw_err_temp = e(2);
+        yaw_err_temp = atan2(sin(yaw_err_temp), cos(yaw_err_temp));
+        e(2) = yaw_err_temp;
+        yaw_err.push_back(e(2));
+
         cost += mtimes(e.T(), mtimes(Q, e));
+        casadi::MX a_cost = mtimes(e.T(), mtimes(Q, e));
         cost += mtimes(U(casadi::Slice(), k).T(), mtimes(R, U(casadi::Slice(), k)));
+        casadi::MX ctrl_cost = mtimes(U(casadi::Slice(), k).T(), mtimes(R, U(casadi::Slice(), k)));
+        ctrl_costs.push_back(ctrl_cost);
+        state_costs.push_back(a_cost);
     }
 
     casadi::MX eN = X(casadi::Slice(), N) - Xref(casadi::Slice(), N-1);
+    // Wrapping final error
+    casadi::MX yaw_err_N = eN(2);
+    yaw_err_N = atan2(sin(yaw_err_N), cos(yaw_err_N));
+    eN(2) = yaw_err_N;
     cost += mtimes(eN.T(), mtimes(Q, eN));
+
+    debug_func_ = casadi::Function(
+        "debug_func",
+        {X, U, Xref},
+        {
+            casadi::MX::vertcat(x_err),
+            casadi::MX::vertcat(y_err),
+            casadi::MX::vertcat(yaw_err),
+            casadi::MX::vertcat(ctrl_costs),
+            casadi::MX::vertcat(state_costs),
+            cost
+        }
+    );
 
     // Constraints
     std::vector<casadi::MX> g;
@@ -77,7 +113,7 @@ void MPCController::buildSolver()
     g.push_back(X(casadi::Slice(), 0) - x0);
 
     // Dynamics
-    for (int k = 0; k < N; ++k)
+    for (int k = 0; k < N; k++)
     {
         casadi::MX x_next = dynamic_model_->f(X(casadi::Slice(), k), U(casadi::Slice(), k), dt_);
         g.push_back(X(casadi::Slice(), k + 1) - x_next);
@@ -94,6 +130,7 @@ void MPCController::buildSolver()
 
     casadi::Dict opts;
     opts["ipopt.print_level"] = 5;
+    opts["ipopt.sb"] = "yes";
     opts["ipopt.warm_start_init_point"] = "yes";
 
     solver_ = nlpsol("solver", "ipopt", nlp, opts);
@@ -106,14 +143,14 @@ void MPCController::buildSolver()
     std::vector<double> lbx, ubx;
 
     // State bounds
-    for (int k = 0; k <= N; ++k)
+    for (int k = 0; k <= N; k++)
     {
         lbx.insert(lbx.end(), x_lb.begin(), x_lb.end());
         ubx.insert(ubx.end(), x_ub.begin(), x_ub.end());
     }
 
     // Control bounds
-    for (int k = 0; k < N; ++k)
+    for (int k = 0; k < N; k++)
     {
         lbx.insert(lbx.end(), u_lb.begin(), u_lb.end());
         ubx.insert(ubx.end(), u_ub.begin(), u_ub.end());
@@ -145,12 +182,12 @@ void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &r
     std::vector<double> p;
 
     // x0
-    for (int i = 0; i < state_size_; ++i)
+    for (int i = 0; i < state_size_; i++)
         p.push_back(state(i));
 
     // Xref
-    for (int k = 0; k < horizon_; ++k)
-        for (int i = 0; i < state_size_; ++i)
+    for (int k = 0; k < horizon_; k++)
+        for (int i = 0; i < state_size_; i++)
             p.push_back(reference(i, k));
 
     std::map<std::string, DM> args;
@@ -173,6 +210,38 @@ void MPCController::solve(const Eigen::VectorXd &state, const Eigen::MatrixXd &r
     control_input_to_publish_(0) = vel;
     control_input_to_publish_(1) = yaw_rate;
     control_input_mutex_.unlock();
+
+    int nx = state_size_;
+    int nu = control_size_;
+    int N  = horizon_;
+
+    // Extract X and U from solution
+    casadi::DM Xsol = reshape(
+        sol(casadi::Slice(0, nx*(N+1))),
+        nx, N+1
+    );
+
+    casadi::DM Usol = reshape(
+        sol(casadi::Slice(nx*(N+1), sol.size1())),
+        nu, N
+    );
+
+    // Rebuild Xref DM
+    casadi::DM Xref_dm = reshape(
+        args["p"](casadi::Slice(nx, args["p"].size1())),
+        output_size_, N
+    );
+
+    std::vector<casadi::DM> dbg_in = {Xsol, Usol, Xref_dm};
+    auto dbg = debug_func_(dbg_in);
+
+    std::cout << "\n--- MPC ERROR and COST DEBUG ---\n";
+    std::cout << "X error per step:\n" << dbg[0] << "\n";
+    std::cout << "Y error per step:\n" << dbg[1] << "\n";
+    std::cout << "Yaw error per step:\n" << dbg[2] << "\n";
+    std::cout << "Control cost per step:\n" << dbg[3] << "\n";
+    std::cout << "State cost per step:\n" << dbg[4] << "\n";
+    std::cout << "Total cost: " << dbg[5] << "\n";
 }
 
 void MPCController::warmStartState(casadi::DMDict &res)
@@ -190,7 +259,7 @@ void MPCController::warmStartState(casadi::DMDict &res)
     casadi::DM x_next = casadi::DM::zeros(sol.size1());
 
     // Shift X
-    for (int k = 0; k < horizon_; ++k)
+    for (int k = 0; k < horizon_; k++)
     {
         x_next(casadi::Slice(k*nx, (k+1)*nx)) =
             Xsol(casadi::Slice((k+1)*nx, (k+2)*nx));
@@ -201,7 +270,7 @@ void MPCController::warmStartState(casadi::DMDict &res)
 
     // Shift U
     int u_offset = nx*(horizon_+1);
-    for (int k = 0; k < horizon_-1; ++k)
+    for (int k = 0; k < horizon_-1; k++)
     {
         x_next(casadi::Slice(u_offset + k*nu, u_offset + (k+1)*nu)) =
             Usol(casadi::Slice((k+1)*nu, (k+2)*nu));
@@ -239,18 +308,6 @@ void MPCController::pathCallback(const nav_msgs::msg::Path::SharedPtr msg)
         }
         std::vector<TrajectoryPoint> traj = trajectory_generator_.generateTrajectory(reference_path);
 
-        // Publish traj
-        /*nav_msgs::msg::Path traj_msg;
-        for (size_t i = 0; i < traj.size(); i++)
-        {
-            geometry_msgs::msg::PoseStamped pose;
-            pose.pose.position.x = traj.at(i).position(1);
-            pose.pose.position.z = traj.at(i).position(0);
-            pose.pose.position.y = 1.0;
-            traj_msg.poses.push_back(pose);
-        }
-        traj_publisher_->publish(traj_msg);*/
-
         trajectory_follower_thread_ = std::thread(&MPCController::trajectoryFollowerThread, this, traj);
     }
 }
@@ -259,13 +316,13 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
 {
     unsigned int reference_size = reference_traj.size();
     unsigned int current_ref_idx = 0;
-    std::vector<unsigned int> reached_indices;
+    std::vector<int> reached_indices;
 
     // Print reference
     Eigen::IOFormat fmt(3, 0, ", ", "\n", "[", "]");
     //std::cout << "A:\n" << reference.format(fmt) << std::endl;
 
-    rclcpp::Rate rate(1.0 / 0.01);
+    rclcpp::Rate rate(1.0 / dt_);
 
     while (rclcpp::ok() && current_ref_idx < reference_size)
     {
@@ -282,8 +339,11 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
         size_t best_idx = current_ref_idx;
         double best_s   = -std::numeric_limits<double>::infinity();
 
-        for (size_t i = current_ref_idx; i + 1 < reference_size && i < current_ref_idx + horizon_; ++i)
+        for (size_t i = current_ref_idx; i + 1 < reference_size && i < current_ref_idx + horizon_; i++)
         {
+            if (std::find(reached_indices.begin(), reached_indices.end(), i) != reached_indices.end())
+                continue;
+            
             Eigen::Vector2d Pi = reference_traj[i].position;
             Eigen::Vector2d Pj = reference_traj[i + 1].position;
             Eigen::Vector2d robot_pos = Eigen::Vector2d(state(0), state(1));
@@ -317,6 +377,19 @@ void MPCController::trajectoryFollowerThread(const std::vector<TrajectoryPoint> 
                 {
                     best_s   = s;
                     best_idx = i;
+                    reached_indices.push_back(i);
+                }
+            }
+            else
+            {
+                if (s > best_s)
+                {
+                    if (e_ct < 0.5 || s > len)  // allow moving to next segment if within threshold
+                    {
+                        best_s   = s;
+                        best_idx = i;
+                        reached_indices.push_back(i);
+                    }
                 }
             }
         }
