@@ -1,4 +1,4 @@
-from launch import LaunchDescription
+from launch import LaunchDescription 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import Command, LaunchConfiguration, FindExecutable, PathJoinSubstitution
@@ -7,7 +7,7 @@ from launch.actions import DeclareLaunchArgument
 
 def generate_launch_description():
     
-    # Argument to load the right robot model using xacro
+    # Robot model argument
     robot_model_arg = DeclareLaunchArgument(
         'robot_model',
         default_value='a200',
@@ -15,9 +15,17 @@ def generate_launch_description():
         description='Robot model to use'
     )
 
+    # use_sim_time argument
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation clock if true'
+    )
+
     robot_model = LaunchConfiguration("robot_model")
+    use_sim_time = LaunchConfiguration("use_sim_time")
     
-    # Properly build path to xacro
+    # Build robot_description from xacro
     robot_description = Command([
         FindExecutable(name="xacro"),
         " ",
@@ -28,13 +36,25 @@ def generate_launch_description():
             [robot_model, ".urdf.xacro"]
         ])
     ])
-    
+
+    # robot_state_publisher node
+    robot_state_publisher = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        parameters=[{
+            "robot_description": robot_description,
+            "use_sim_time": use_sim_time
+        }],
+        output="screen"
+    )
+
     # ros2_control node
     ros2_control = Node(
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[
-            {"robot_description": robot_description},
+            {"robot_description": robot_description,
+            "use_sim_time": True},
             PathJoinSubstitution([
                 FindPackageShare("clearpath_robots_sim"),
                 "config",
@@ -45,9 +65,10 @@ def generate_launch_description():
         output="screen"
     )
 
-    
     return LaunchDescription([
         robot_model_arg,
+        use_sim_time_arg,
+        robot_state_publisher,
         ros2_control,
         Node(
             package="controller_manager",

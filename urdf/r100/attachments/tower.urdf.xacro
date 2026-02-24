@@ -12,14 +12,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_body.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_body.stl"/>
         </geometry>
         <material name="clearpath_dark_grey" />
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_body_collision.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_body_collision.stl"/>
         </geometry>
       </collision>
     </link>
@@ -52,14 +52,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 -${math.pi/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_shoulder.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_shoulder.stl"/>
         </geometry>
         <material name="clearpath_dark_grey" />
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 -${math.pi/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_shoulder_collision.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_shoulder_collision.stl"/>
         </geometry>
       </collision>
     </link>
@@ -69,14 +69,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_shoulder.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_shoulder.stl"/>
         </geometry>
         <material name="clearpath_dark_grey" />
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/attachments/tower_shoulder_collision.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/attachments/tower_shoulder_collision.stl"/>
         </geometry>
       </collision>
     </link>

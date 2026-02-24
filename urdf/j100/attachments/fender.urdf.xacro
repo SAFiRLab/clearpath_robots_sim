@@ -6,10 +6,10 @@
       <visual>
         <geometry>
           <xacro:if value="${model == 'default'}">
-            <mesh filename="package://clearpath_platform_description/meshes/j100/attachments/default_fender.stl" />
+            <mesh filename="package://clearpath_robots_sim/meshes/j100/attachments/default_fender.stl" />
           </xacro:if>
           <xacro:if value="${model == 'sensor'}">
-            <mesh filename="package://clearpath_platform_description/meshes/j100/attachments/sensor_fender.stl" />
+            <mesh filename="package://clearpath_robots_sim/meshes/j100/attachments/sensor_fender.stl" />
           </xacro:if>
         </geometry>
         <material name="clearpath_yellow" />

@@ -7,7 +7,7 @@
       <visual>
         <origin xyz="0 ${side * 0.027} 0" rpy="0 0 ${PI/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/do100/mecanum_wheel.dae" scale="${side} 1 1" />
+          <mesh filename="package://clearpath_robots_sim/meshes/do100/mecanum_wheel.dae" scale="${side} 1 1" />
         </geometry>
       </visual>
       <collision>

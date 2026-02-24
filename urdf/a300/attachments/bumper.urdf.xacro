@@ -8,13 +8,13 @@
       <visual>
         <origin xyz="-0.368500 0 -0.018050"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/a300/attachments/bumper.dae" />
+          <mesh filename="package://clearpath_robots_sim/meshes/a300/attachments/bumper.dae" />
         </geometry>
       </visual>
       <collision>
         <origin xyz="-0.368500 0 -0.018050"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/a300/attachments/bumper_collision.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/a300/attachments/bumper_collision.stl" />
         </geometry>
       </collision>
     </link>

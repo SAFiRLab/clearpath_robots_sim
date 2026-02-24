@@ -8,7 +8,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/j100/j100_wheel.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/j100/j100_wheel.stl"/>
         </geometry>
         <material name="clearpath_black" />
       </visual>

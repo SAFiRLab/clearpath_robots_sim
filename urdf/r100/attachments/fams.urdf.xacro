@@ -26,14 +26,14 @@
       <visual>
         <origin xyz="${top_mesh_x} ${top_mesh_y} ${top_mesh_z + table_height}" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/top.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/top.stl"/>
         </geometry>
         <material name="clearpath_black"/>
       </visual>
       <collision>
         <origin xyz="${top_mesh_x} ${top_mesh_y} ${top_mesh_z + table_height}" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/top.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/top.stl"/>
         </geometry>
       </collision>
       <!-- Leg Pair 1 -->

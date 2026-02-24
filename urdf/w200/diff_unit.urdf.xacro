@@ -25,20 +25,20 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${flip*PI/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/w200/fenders.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/w200/fenders.stl" />
         </geometry>
         <material name="${warthog_color}"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 ${flip*PI/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/w200/fenders.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/w200/fenders.stl" />
         </geometry>
       </collision>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${flip*PI/2}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/w200/rocker.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/w200/rocker.stl" />
         </geometry>
         <material name="clearpath_black"/>
       </visual>
@@ -56,7 +56,7 @@
       <visual>
         <origin xyz="0 ${flip*-0.0244} 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/w200/light.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/w200/light.stl" />
         </geometry>
         <material name="clearpath_white"/>
       </visual>
@@ -81,7 +81,7 @@
       <visual>
         <origin xyz="0 ${flip*-0.0244} 0" rpy="0 0 ${flip*PI}"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/w200/light.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/w200/light.stl" />
         </geometry>
         <material name="clearpath_red"/>
       </visual>

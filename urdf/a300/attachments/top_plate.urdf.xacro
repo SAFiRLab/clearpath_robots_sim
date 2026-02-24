@@ -15,7 +15,7 @@
           <visual>
             <origin xyz="0.0 0.0 ${-offset_z}"/>
             <geometry>
-              <mesh filename="package://clearpath_platform_description/meshes/a300/attachments/top_plate.dae" />
+              <mesh filename="package://clearpath_robots_sim/meshes/a300/attachments/top_plate.dae" />
             </geometry>
           </visual>
           <collision>

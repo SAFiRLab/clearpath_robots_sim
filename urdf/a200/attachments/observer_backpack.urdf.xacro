@@ -4,7 +4,7 @@
     <link name="${name}_shell_link">
       <visual>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/a200/attachments/observer_backpack_shell.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/a200/attachments/observer_backpack_shell.stl" />
         </geometry>
         <material name="yellow"><color rgba="0.8 0.8 0.0 1.0" /></material>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -32,7 +32,7 @@
     <link name="${name}_masts_link">
       <visual>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/a200/attachments/observer_backpack_masts.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/a200/attachments/observer_backpack_masts.stl"/>
         </geometry>
         <material name="black"><color rgba="0.0 0.0 0.0 1.0" /></material>
         <origin xyz="0 0 0" rpy="0 0 0" />

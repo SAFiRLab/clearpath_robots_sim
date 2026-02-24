@@ -47,14 +47,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/body.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/body.stl"/>
         </geometry>
         <material name="clearpath_black" />
       </visual>
       <collision>
         <origin xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/body-collision.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/body-collision.stl"/>
         </geometry>
       </collision>
       <inertial>
@@ -83,7 +83,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/side-cover.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/side-cover.stl"/>
         </geometry>
         <material name="clearpath_yellow" />
       </visual>
@@ -92,7 +92,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/side-cover.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/side-cover.stl"/>
         </geometry>
         <material name="clearpath_yellow" />
       </visual>
@@ -108,7 +108,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/end-cover.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/end-cover.stl" />
         </geometry>
         <material name="clearpath_black" />
       </visual>
@@ -124,7 +124,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/end-cover.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/end-cover.stl" />
         </geometry>
         <material name="clearpath_red" />
       </visual>
@@ -146,7 +146,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/lights.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/lights.stl" />
         </geometry>
         <material name="clearpath_white" />
       </visual>
@@ -155,7 +155,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/lights.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/lights.stl" />
         </geometry>
         <material name="clearpath_black" />
       </visual>
@@ -172,7 +172,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 ${math.pi/2} 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/axle.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/axle.stl" />
         </geometry>
         <material name="clearpath_black" />
       </visual>
@@ -211,14 +211,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/top.stl" />
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/top.stl" />
         </geometry>
         <material name="clearpath_black" />
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://clearpath_platform_description/meshes/r100/top.stl"/>
+          <mesh filename="package://clearpath_robots_sim/meshes/r100/top.stl"/>
         </geometry>
       </collision>
     </link>
