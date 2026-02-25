@@ -12,12 +12,14 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(Eigen3)
 find_package(casadi REQUIRED)
 find_package(Threads REQUIRED)
@@ -40,7 +42,6 @@ include_directories(
   ${CASADI_INCLUDE_DIRS}
   ${IPOPT_INCLUDE_DIRS}
 )
-
 
 add_library(clearpath_robots_sim SHARED
   src/hardware_interfaces/diff_drive/hardware.cpp
@@ -74,6 +75,8 @@ ament_target_dependencies(clearpath_robots_sim__path_followers
   geometry_msgs
   nav_msgs
   sensor_msgs
+  visualization_msgs
+  tf2_geometry_msgs
 )
 
 target_link_libraries(clearpath_robots_sim__path_followers
@@ -143,6 +146,16 @@ target_link_libraries(example_racecar
 
 install(
   TARGETS example_racecar
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+add_executable(pure_pursuit_node src/path_followers/pure_pursuit/pure_pursuit.cpp)
+target_link_libraries(pure_pursuit_node
+  clearpath_robots_sim__path_followers
+)
+
+install(
+  TARGETS pure_pursuit_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
