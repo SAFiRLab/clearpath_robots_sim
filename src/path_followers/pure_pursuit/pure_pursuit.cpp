@@ -156,7 +156,7 @@ PurePursuit::PurePursuit()
  
     cmd_pub_ = create_publisher<geometry_msgs::msg::TwistStamped>("/platform_velocity_controller/cmd_vel", 10);
  
-    path_sub_ = create_subscription<visualization_msgs::msg::MarkerArray>("/arena_path", 10,
+    path_sub_ = create_subscription<visualization_msgs::msg::MarkerArray>("/husky_test_node/arena_path", 10,
         std::bind(&PurePursuit::pathCallback, this, std::placeholders::_1));
  
     odom_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>("/groundTruth/poseStamped", 10,
